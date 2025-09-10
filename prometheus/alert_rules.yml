@@ -1,0 +1,240 @@
+groups:
+  - name: infrastructure-alerts
+    rules:
+      # Memory-related alerts
+      - alert: HighMemoryUsage
+        expr: service_memory_usage > 85
+        for: 30s
+        labels:
+          severity: warning
+          category: memory
+        annotations:
+          summary: "High memory usage detected on {{ $labels.service }}"
+          description: "Memory usage is {{ $value }}% on service {{ $labels.service }} pod {{ $labels.pod }}"
+
+      - alert: CriticalMemoryUsage
+        expr: service_memory_usage > 95
+        for: 15s
+        labels:
+          severity: critical
+          category: memory
+        annotations:
+          summary: "Critical memory usage on {{ $labels.service }}"
+          description: "Memory usage reached {{ $value }}% on {{ $labels.service }} - potential OOM risk"
+
+      # CPU-related alerts
+      - alert: HighCPUUsage
+        expr: service_cpu_usage > 90
+        for: 30s
+        labels:
+          severity: critical
+          category: cpu
+        annotations:
+          summary: "High CPU usage detected on {{ $labels.service }}"
+          description: "CPU usage is {{ $value }}% on service {{ $labels.service }} pod {{ $labels.pod }}"
+
+      - alert: SustainedHighCPU
+        expr: service_cpu_usage > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: cpu
+        annotations:
+          summary: "Sustained high CPU usage on {{ $labels.service }}"
+          description: "CPU usage above 80% for 5+ minutes on {{ $labels.service }}"
+
+      # Disk-related alerts
+      - alert: HighDiskUsage
+        expr: service_disk_usage > 85
+        for: 1m
+        labels:
+          severity: warning
+          category: disk
+        annotations:
+          summary: "High disk usage on {{ $labels.service }}"
+          description: "Disk usage is {{ $value }}% on service {{ $labels.service }}"
+
+      - alert: CriticalDiskUsage
+        expr: service_disk_usage > 95
+        for: 30s
+        labels:
+          severity: critical
+          category: disk
+        annotations:
+          summary: "Critical disk usage on {{ $labels.service }}"
+          description: "Disk usage reached {{ $value }}% - immediate action required"
+
+      # Network-related alerts
+      - alert: HighNetworkLatency
+        expr: service_network_latency_ms > 1000
+        for: 1m
+        labels:
+          severity: warning
+          category: network
+        annotations:
+          summary: "High network latency detected"
+          description: "Network latency to {{ $labels.target }} is {{ $value }}ms from {{ $labels.service }}"
+
+      - alert: CriticalNetworkLatency
+        expr: service_network_latency_ms > 2000
+        for: 30s
+        labels:
+          severity: critical
+          category: network
+        annotations:
+          summary: "Critical network latency"
+          description: "Network latency exceeded 2 seconds - service degradation likely"
+
+      # Error rate alerts
+      - alert: HighErrorRate
+        expr: service_error_rate > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: errors
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value }}% for {{ $labels.error_type }} errors"
+
+      - alert: CriticalErrorRate
+        expr: service_error_rate > 25
+        for: 1m
+        labels:
+          severity: critical
+          category: errors
+        annotations:
+          summary: "Critical error rate on {{ $labels.service }}"
+          description: "Error rate reached {{ $value }}% - service availability impacted"
+
+      # Database-related alerts
+      - alert: HighDatabaseConnections
+        expr: service_db_connections > 80
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database connection count"
+          description: "{{ $labels.service }} has {{ $value }} active connections to {{ $labels.db_name }}"
+
+      - alert: DatabaseConnectionLeak
+        expr: service_db_connections > 120
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Potential database connection leak"
+          description: "Connection count exceeded normal limits - possible connection leak"
+
+      # Queue-related alerts
+      - alert: HighQueueDepth
+        expr: service_queue_depth > 1000
+        for: 2m
+        labels:
+          severity: warning
+          category: queue
+        annotations:
+          summary: "High queue depth on {{ $labels.service }}"
+          description: "Queue {{ $labels.queue_name }} has {{ $value }} pending messages"
+
+      - alert: CriticalQueueBacklog
+        expr: service_queue_depth > 5000
+        for: 1m
+        labels:
+          severity: critical
+          category: queue
+        annotations:
+          summary: "Critical queue backlog"
+          description: "Queue backlog critical - potential message loss risk"
+
+      # Garbage Collection alerts
+      - alert: HighGCTime
+        expr: service_gc_time_ms > 500
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High garbage collection time"
+          description: "GC {{ $labels.gc_type }} taking {{ $value }}ms on {{ $labels.service }}"
+
+      - alert: GCPressure
+        expr: service_gc_time_ms > 1000
+        for: 1m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Garbage collection pressure"
+          description: "Excessive GC time impacting application performance"
+
+      # Response time alerts
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, service_response_time_seconds_bucket) > 2
+        for: 3m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow response times on {{ $labels.service }}"
+          description: "95th percentile response time > 2s for {{ $labels.endpoint }}"
+
+      - alert: CriticalResponseTime
+        expr: histogram_quantile(0.95, service_response_time_seconds_bucket) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical response times"
+          description: "Response times critically high - user experience severely impacted"
+
+  - name: composite-alerts
+    rules:
+      # Multi-symptom alerts that indicate specific problems
+      - alert: MemoryLeakSuspected
+        expr: |
+          (
+            increase(service_memory_usage[10m]) > 20 and
+            service_gc_time_ms > 300
+          )
+        for: 5m
+        labels:
+          severity: warning
+          category: memory
+          type: composite
+        annotations:
+          summary: "Potential memory leak detected on {{ $labels.service }}"
+          description: "Memory usage increasing with high GC times - investigate for memory leak"
+
+      - alert: DatabasePerformanceDegradation
+        expr: |
+          (
+            service_db_connections > 60 and
+            histogram_quantile(0.95, service_response_time_seconds_bucket) > 3
+          )
+        for: 3m
+        labels:
+          severity: warning
+          category: database
+          type: composite
+        annotations:
+          summary: "Database performance degradation"
+          description: "High connection count with slow response times - database performance issue"
+
+      - alert: ResourceExhaustion
+        expr: |
+          (
+            service_cpu_usage > 85 and
+            service_memory_usage > 80 and
+            service_error_rate > 5
+          )
+        for: 2m
+        labels:
+          severity: critical
+          category: resources
+          type: composite
+        annotations:
+          summary: "Resource exhaustion on {{ $labels.service }}"
+          description: "High CPU, memory usage with increasing errors - resource exhaustion likely"
